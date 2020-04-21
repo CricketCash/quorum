@@ -203,6 +203,18 @@ func TestCheckCompatible(t *testing.T) {
 			head:    8,
 			wantErr: nil,
 		},
+		{
+			stored:  &ChainConfig{MaxCodeSize: 32},
+			new:     &ChainConfig{MaxCodeSizeConfig: storedMaxCodeConfig2},
+			head:    15,
+			wantErr: nil,
+		},
+		{
+			stored:  &ChainConfig{MaxCodeSize: 32, MaxCodeSizeChangeBlock:big.NewInt(10)},
+			new:     &ChainConfig{MaxCodeSizeConfig: storedMaxCodeConfig1},
+			head:    15,
+			wantErr: nil,
+		},
 	}
 
 	for _, test := range tests {

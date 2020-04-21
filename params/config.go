@@ -330,38 +330,35 @@ func (c *ChainConfig) IsQIP714(num *big.Int) bool {
 	return isForked(c.QIP714Block, num)
 }
 
+// IsMaxCodeSizeChangeBlock returns whether num represents a block number
+// where maxCodeSize change was done
+func (c *ChainConfig) IsMaxCodeSizeChangeBlock(num *big.Int) bool {
+	return isForked(c.MaxCodeSizeChangeBlock, num)
+}
+
 // Quorum
 //
 // GetMaxCodeSize returns maxCodeSize for the given block number
 func (c *ChainConfig) GetMaxCodeSize(num *big.Int) int {
 	maxCodeSize := MaxCodeSize
-	for _, data := range c.MaxCodeSizeConfig {
-		if data.Block.Cmp(num) > 0 {
-			break
+
+	if len(c.MaxCodeSizeConfig) > 0 {
+		for _, data := range c.MaxCodeSizeConfig {
+			if data.Block.Cmp(num) > 0 {
+				break
+			}
+			maxCodeSize = int(data.Size) * 1024
 		}
-		maxCodeSize = int(data.Size) * 1024
+	} else if c.MaxCodeSize > 0 {
+		if c.MaxCodeSizeChangeBlock != nil && c.MaxCodeSizeChangeBlock.Cmp(big.NewInt(0)) >= 0 {
+			if c.IsMaxCodeSizeChangeBlock(num) && c.MaxCodeSize > 0 {
+				maxCodeSize = int(c.MaxCodeSize) * 1024
+			}
+		} else {
+			maxCodeSize = int(c.MaxCodeSize) * 1024
+		}
 	}
 	return maxCodeSize
-}
-
-// create the default MaxCodeSizeConfig array based on current
-// values of maxCodeSize and maxCodeSizeChangeBlock
-func (c *ChainConfig) PopulateDefaultMaxCodeData() {
-	if len(c.MaxCodeSizeConfig) > 0 {
-		return
-	}
-
-	if c.MaxCodeSize != 0 &&
-		(c.MaxCodeSizeChangeBlock != nil && c.MaxCodeSizeChangeBlock.Cmp(big.NewInt(0)) > 0) {
-		// add two entries in this case
-		//c.MaxCodeSizeConfig = append(c.MaxCodeSizeConfig, defaultMaxCodeRec)
-		maxCodeSizeRec := MaxCodeConfigStruct{c.MaxCodeSizeChangeBlock, c.MaxCodeSize}
-		c.MaxCodeSizeConfig = append(c.MaxCodeSizeConfig, maxCodeSizeRec)
-	} else if c.MaxCodeSize != 0 {
-		// add one record with maxCodeSize as given in config
-		maxCodeSizeRec := MaxCodeConfigStruct{big.NewInt(0), c.MaxCodeSize}
-		c.MaxCodeSizeConfig = append(c.MaxCodeSizeConfig, maxCodeSizeRec)
-	}
 }
 
 // validates the maxCodeSizeConfig data passed in config
@@ -376,6 +373,9 @@ func (c *ChainConfig) CheckMaxCodeConfigData() error {
 	for _, data := range c.MaxCodeSizeConfig {
 		if data.Size < 24 || data.Size > 128 {
 			return errors.New("Genesis max code size must be between 24 and 128")
+		}
+		if data.Block == nil {
+			return errors.New("Block number not given in maxCodeSizeConfig data")
 		}
 		if data.Block.Cmp(prevBlock) < 0 {
 			return errors.New("invalid maxCodeSize detail, block order has to be ascending")
@@ -399,24 +399,8 @@ func isMaxCodeSizeConfigCompatible(c1, c2 *ChainConfig, head *big.Int) (error, *
 		return fmt.Errorf("genesis file missing max code size information"), head, head
 	}
 
-	c2RecsBelowHead := 0
-	for _, data := range c2.MaxCodeSizeConfig {
-		if data.Block.Cmp(head) <= 0 {
-			c2RecsBelowHead++
-		} else {
-			break
-		}
-	}
-
-	if len(c2.MaxCodeSizeConfig) > 0 {
-		// if there is only one past record, check if this is a migration scenario
-		// where in maxCodeSize was set but maxCodeSizeChangeBlock was not set
-		// allow this scenario
-		if len(c1.MaxCodeSizeConfig) == 0 && c1.MaxCodeSizeChangeBlock == nil &&
-			c2.MaxCodeSizeConfig[0].Size == c1.MaxCodeSize {
-			return nil, big.NewInt(0), big.NewInt(0)
-		}
-		c1.PopulateDefaultMaxCodeData()
+	if len(c2.MaxCodeSizeConfig) > 0 && len(c1.MaxCodeSizeConfig) == 0 {
+		return nil, big.NewInt(0), big.NewInt(0)
 	}
 
 	// check the number of records below current head in both configs
@@ -429,6 +413,16 @@ func isMaxCodeSizeConfigCompatible(c1, c2 *ChainConfig, head *big.Int) (error, *
 			break
 		}
 	}
+
+	c2RecsBelowHead := 0
+	for _, data := range c2.MaxCodeSizeConfig {
+		if data.Block.Cmp(head) <= 0 {
+			c2RecsBelowHead++
+		} else {
+			break
+		}
+	}
+
 	// if the count of past records is not matching return error
 	if c1RecsBelowHead != c2RecsBelowHead {
 		return errors.New("maxCodeSizeConfig data incompatible. updating maxCodeSize for past"), head, head
