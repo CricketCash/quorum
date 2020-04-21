@@ -351,7 +351,7 @@ func (c *ChainConfig) GetMaxCodeSize(num *big.Int) int {
 		}
 	} else if c.MaxCodeSize > 0 {
 		if c.MaxCodeSizeChangeBlock != nil && c.MaxCodeSizeChangeBlock.Cmp(big.NewInt(0)) >= 0 {
-			if c.IsMaxCodeSizeChangeBlock(num) && c.MaxCodeSize > 0 {
+			if c.IsMaxCodeSizeChangeBlock(num) {
 				maxCodeSize = int(c.MaxCodeSize) * 1024
 			}
 		} else {
@@ -364,7 +364,7 @@ func (c *ChainConfig) GetMaxCodeSize(num *big.Int) int {
 // validates the maxCodeSizeConfig data passed in config
 func (c *ChainConfig) CheckMaxCodeConfigData() error {
 	if c.MaxCodeSize != 0 || (c.MaxCodeSizeChangeBlock != nil && c.MaxCodeSizeChangeBlock.Cmp(big.NewInt(0)) >= 0) {
-		return errors.New("maxCodeSize & maxCodeSizeChangeBlock depricated. Consider using maxCodeSizeConfig")
+		return errors.New("maxCodeSize & maxCodeSizeChangeBlock deprecated. Consider using maxCodeSizeConfig")
 	}
 	// validate max code size data
 	// 1. Code size should not be less than 24 and greater than 128
